@@ -164,7 +164,3 @@ If this helped you, consider:
 ✅ **Sharing** 📢 with your network  
 
 ---
-
-### Stay Connected  
-
-![Follow Me](https://imgur.com/2j7GSPs.png)
