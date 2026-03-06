@@ -43,6 +43,36 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
 
   const { hourlyData, dailyData } = siteHistory;
 
+  const deriveDailyData = (points) => {
+    if (!points || points.length === 0) return [];
+    
+    const grouped = {};
+    points.forEach(p => {
+      const d = new Date(p.timestamp);
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(p);
+    });
+
+    return Object.keys(grouped).map(dateKey => {
+      const dayPoints = grouped[dateKey];
+      
+      const totalResponseTime = dayPoints.reduce((sum, p) => sum + (p.responseTime || 0), 0);
+      const avgResponseTime = Math.round(totalResponseTime / dayPoints.length);
+      
+      const upCount = dayPoints.filter(p => p.status === 'operational').length;
+      const uptime = Math.round((upCount / dayPoints.length) * 100 * 10) / 10; // 1 decimal place
+
+      return {
+        timestamp: dayPoints[0].timestamp,
+        avgResponseTime,
+        uptime,
+      };
+    }).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  };
+
+  const processedDailyData = dailyData && dailyData.length > 0 ? dailyData : deriveDailyData(hourlyData);
+  
   const prepareChartData = () => {
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
     const primaryColor = '#6366f1'; 
@@ -84,7 +114,7 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
         ]
       };
     } else {
-      const labels = (dailyData || []).map(data =>
+      const labels = (processedDailyData || []).map(data =>
         new Date(data.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })
       );
 
@@ -93,7 +123,7 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
         datasets: [
           {
             label: 'AVG LATENCY',
-            data: (dailyData || []).map(data => data.avgResponseTime),
+            data: (processedDailyData || []).map(data => data.avgResponseTime),
             borderColor: primaryColor,
             backgroundColor: 'transparent',
             tension: 0.4,
@@ -104,7 +134,7 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
           },
           {
             label: 'STABILITY',
-            data: (dailyData || []).map(data => data.uptime),
+            data: (processedDailyData || []).map(data => data.uptime),
             borderColor: secondaryColor,
             backgroundColor: 'transparent',
             yAxisID: 'y1',
