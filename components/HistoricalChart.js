@@ -24,7 +24,7 @@ ChartJS.register(
   Filler
 );
 
-const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
+const HistoricalChart = ({ siteHistory, siteId, siteName, site }) => {
   const [timeRange, setTimeRange] = useState('24h');
 
   if (!siteHistory) {
@@ -45,7 +45,7 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
 
   const deriveDailyData = (points) => {
     if (!points || points.length === 0) return [];
-    
+
     const grouped = {};
     points.forEach(p => {
       const d = new Date(p.timestamp);
@@ -56,10 +56,10 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
 
     return Object.keys(grouped).map(dateKey => {
       const dayPoints = grouped[dateKey];
-      
+
       const totalResponseTime = dayPoints.reduce((sum, p) => sum + (p.responseTime || 0), 0);
       const avgResponseTime = Math.round(totalResponseTime / dayPoints.length);
-      
+
       const upCount = dayPoints.filter(p => p.status === 'operational').length;
       const uptime = Math.round((upCount / dayPoints.length) * 100 * 10) / 10;
 
@@ -72,11 +72,11 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
   };
 
   const processedDailyData = dailyData && dailyData.length > 0 ? dailyData : deriveDailyData(hourlyData);
-  
+
   const prepareChartData = () => {
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-    const primaryColor = '#6366f1'; 
-    const secondaryColor = '#10b981'; 
+    const primaryColor = '#6366f1';
+    const secondaryColor = '#10b981';
 
     if (timeRange === '24h') {
       const labels = (hourlyData || []).map(data => {
@@ -105,11 +105,20 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
             fill: true,
             tension: 0.45,
             borderWidth: 4,
-            pointRadius: 0,
-            pointHoverRadius: 6,
-            pointHoverBackgroundColor: primaryColor,
+            pointRadius: (context) => {
+              const dataPoint = hourlyData?.[context.dataIndex];
+              return dataPoint?.status === 'outage' ? 8 : 0;
+            },
+            pointBackgroundColor: '#ef4444',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointHoverRadius: 10,
+            pointHoverBackgroundColor: (context) => {
+              const dataPoint = hourlyData?.[context.dataIndex];
+              return dataPoint?.status === 'outage' ? '#ef4444' : primaryColor;
+            },
             pointHoverBorderColor: '#fff',
-            pointHoverBorderWidth: 3,
+            pointHoverBorderWidth: 4,
           }
         ]
       };
@@ -176,6 +185,13 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
         borderColor: 'rgba(255, 255, 255, 0.1)',
         borderWidth: 1,
         boxPadding: 6,
+        callbacks: {
+          label: (context) => {
+            const dataPoint = hourlyData[context.dataIndex];
+            const status = dataPoint?.status === 'operational' ? '🟢 OPERATIONAL' : '🔴 OUTAGE';
+            return [`LATENCY: ${context.parsed.y}ms`, `STATUS: ${status}`];
+          }
+        }
       }
     },
     scales: {
@@ -222,9 +238,6 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
             <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
               Performance Matrix
             </h3>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">
-              Live Reliability Telemetry
-            </p>
           </div>
         </div>
 
@@ -255,12 +268,25 @@ const HistoricalChart = ({ siteHistory, siteId, siteName }) => {
       </div>
 
       <div className="flex flex-wrap items-center gap-10 pt-8 border-t border-slate-200 dark:border-white/5">
-        <LegendItem dotColor="bg-indigo-500" label="LATENCY PULSE" value={`${hourlyData?.[hourlyData.length - 1]?.responseTime || '--'}ms`} />
-        <LegendItem dotColor="bg-emerald-500" label="NODE STABILITY" value="OPTIMAL" />
+        <LegendItem 
+            dotColor="bg-indigo-500" 
+            label="LATENCY PULSE" 
+            value={`${hourlyData?.[hourlyData.length - 1]?.responseTime || '--'}ms`} 
+        />
+        <LegendItem 
+            dotColor={site?.status === 'outage' ? "bg-red-500" : "bg-emerald-500"} 
+            label="NODE STABILITY" 
+            value={(() => {
+                if (!hourlyData || hourlyData.length === 0) return 'UNKNOWN';
+                const upCount = hourlyData.filter(p => p.status === 'operational').length;
+                const ratio = Math.round((upCount / hourlyData.length) * 100);
+                return `${ratio}% ${ratio > 98 ? 'OPTIMAL' : ratio > 90 ? 'RELIABLE' : 'CRITICAL'}`;
+            })()} 
+        />
 
         <div className="ml-auto hidden md:flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          <History className="w-4 h-4 text-slate-300" />
-          <span>Real-time Stream: Active</span>
+          <Shield className={`w-4 h-4 ${site?.status === 'outage' ? 'text-red-500' : 'text-emerald-500'}`} />
+          <span>Status: {site?.statusText || 'Active'}</span>
         </div>
       </div>
     </div>

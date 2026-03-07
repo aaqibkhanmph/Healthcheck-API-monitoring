@@ -99,6 +99,41 @@ const SiteStatusCard = ({ site }) => {
         </span>
       </div>
 
+      <div className="mt-4 mb-2">
+        <div className="flex items-center justify-between mb-1.5 px-0.5">
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Uptime Pulse (50)</span>
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+            Avg {responseTime ? `${responseTime}ms` : '--'}
+          </span>
+        </div>
+        <div className="flex gap-[2px] h-6">
+          {site.history && site.history.length > 0 ? (
+            [...Array(50)].map((_, i) => {
+              const hIndex = site.history.length - (50 - i);
+              const check = hIndex >= 0 ? site.history[hIndex] : null;
+
+              if (!check) return <div key={i} className="flex-1 rounded-[1px] bg-slate-100 dark:bg-slate-700/30"></div>;
+
+              const isOutage = check.status === 'outage';
+              const isDegraded = check.responseTime > 3000;
+
+              return (
+                <div
+                  key={i}
+                  title={`Status: ${check.status} | Time: ${check.responseTime}ms | At: ${new Date(check.timestamp).toLocaleString()}`}
+                  className={`flex-1 rounded-[1px] transform transition-all hover:scale-x-150 hover:z-10 cursor-pointer ${isOutage ? 'bg-red-500' : isDegraded ? 'bg-yellow-500' : 'bg-emerald-500'
+                    }`}
+                ></div>
+              );
+            })
+          ) : (
+            <div className="flex-1 rounded-[1px] bg-slate-100 dark:bg-slate-700/30 flex items-center justify-center">
+              <span className="text-[8px] text-slate-400">WAITING FOR TELEMETRY STREAM...</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="mt-3 sm:mt-4 flex flex-wrap sm:flex-nowrap items-center justify-between text-xs sm:text-sm">
         <div className="flex space-x-2 sm:space-x-4 mb-2 sm:mb-0 w-full sm:w-auto">
           <Link

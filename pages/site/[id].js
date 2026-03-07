@@ -7,7 +7,7 @@ import Footer from '../../components/Footer';
 import SiteMetrics from '../../components/SiteMetrics';
 import HistoricalChart from '../../components/HistoricalChart';
 import { initializeDarkMode, toggleDarkMode } from '../../lib/utils';
-import { getSpringBootServices, getSpringBootHistory, mapSpringBootToFrontend, deleteService } from '../../lib/springBootApi';
+import { getSpringBootService, getSpringBootServiceHistory, mapSpringBootToFrontend, deleteService } from '../../lib/springBootApi';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import EditServiceForm from '../../components/EditServiceForm';
 
@@ -28,48 +28,60 @@ export default function SiteDetail() {
   }, []);
 
   useEffect(() => {
-    if (!id || isMounted.current) return;
+    if (!id) return;
 
     const fetchSiteData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const [sbServices, sbHistory] = await Promise.all([
-          getSpringBootServices(),
-          getSpringBootHistory(),
+        const [sbService, sbHistory] = await Promise.all([
+          getSpringBootService(id),
+          getSpringBootServiceHistory(id),
         ]);
 
-        if (!sbServices) {
-          throw new Error('Could not connect to API Monitoring Node');
+        if (!sbService) {
+          throw new Error('Could not connect to API Monitoring Node or Node not found');
         }
 
-        const mappedSites = mapSpringBootToFrontend(sbServices, sbHistory);
-        const targetSite = mappedSites.find(s => s.id === id);
+        const mappedSites = mapSpringBootToFrontend([sbService], sbHistory);
+        const targetSite = mappedSites[0];
 
         if (!targetSite) {
-          setError('Node not found. It may have been removed or the ID is invalid.');
+          setError('Node mapping failed.');
           return;
         }
 
         setSite(targetSite);
 
-        if (targetSite.history && targetSite.history.length > 0) {
-          setSiteHistory({
-            hourlyData: targetSite.history,
-            dailyData: []
-          });
-        }
+        const parseDate = (d) => {
+          if (!d) return new Date();
+          if (Array.isArray(d)) return new Date(d[0], d[1] - 1, d[2], d[3] || 0, d[4] || 0, d[5] || 0);
+          return new Date(d);
+        };
+
+        const processedHistory = sbHistory.map(h => ({
+          status: h.status === 'UP' ? 'operational' : 'outage',
+          responseTime: h.responseTime,
+          timestamp: parseDate(h.checkedAt).toISOString(),
+        })).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        console.log("Processed History for Chart:", processedHistory);
+
+        setSiteHistory({
+          hourlyData: processedHistory,
+          dailyData: []
+        });
+
       } catch (err) {
         console.error('Error fetching site data:', err);
-        setError('Failed to load site data. Please try again later.');
+        setError('Failed to load site data.');
       } finally {
         setLoading(false);
       }
     };
 
     fetchSiteData();
-    isMounted.current = true;
 
     const refreshInterval = setInterval(fetchSiteData, 600000);
     return () => clearInterval(refreshInterval);
@@ -113,7 +125,7 @@ export default function SiteDetail() {
               <ArrowLeft className="h-4 w-4 mr-1.5" />
               Back to Status Dashboard
             </Link>
-            
+
             {!loading && !error && site && (
               <div className="flex gap-2">
                 <EditServiceForm site={site} onServiceUpdated={handleServiceUpdated} />
@@ -174,6 +186,7 @@ export default function SiteDetail() {
                     siteHistory={siteHistory}
                     siteId={id}
                     siteName={site.name}
+                    site={site}
                   />
                 </div>
               </div>
